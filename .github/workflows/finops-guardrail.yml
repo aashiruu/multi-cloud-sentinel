@@ -4,13 +4,18 @@ on: [pull_request]
 
 jobs:
   infracost:
+    name: Infracost Cost Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
     steps:
-      - name: Checkout base
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Setup Infracost
-        uses: infracost/actions/setup@v2
+        uses: infracost/actions/setup@v3
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
@@ -21,15 +26,24 @@ jobs:
                             --out-file /tmp/infracost.json
 
       - name: Post Infracost Comment
-        uses: infracost/actions/comment@v2
+        uses: infracost/actions/comment@v3
         with:
           path: /tmp/infracost.json
           behavior: update
 
       - name: Check Budget Limit
         run: |
+          # Use jq to get the total monthly cost
           COST=$(jq '.totalMonthlyCost' /tmp/infracost.json | tr -d '"')
-          if (( $(echo "$COST > 10" | bc -l) )); then
-            echo "❌ ERROR: This deployment exceeds the $10 budget limit ($$COST)."
+          echo "Predicted Monthly Cost: $COST"
+
+          # If cost is null or empty (no resources), set it to 0
+          if [ -z "$COST" ] || [ "$COST" == "null" ]; then COST=0; fi
+
+          # SRE Guardrail: Fail if cost is > $10
+          if (( $(echo "$COST > 10.0" | bc -l) )); then
+            echo "❌ ERROR: Predicted cost of $COST exceeds the $10 budget!"
             exit 1
+          else
+            echo "✅ Budget check passed."
           fi
