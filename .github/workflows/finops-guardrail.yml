@@ -36,15 +36,20 @@ jobs:
 
       - name: Check Budget Limit
         run: |
-          COST=$(jq '.totalMonthlyCost' /tmp/infracost.json | tr -d '"')
-          echo "Predicted Monthly Cost: $COST"
+          # Get cost, default to 0 if null
+          RAW_COST=$(jq '.totalMonthlyCost' /tmp/infracost.json | tr -d '"')
+          if [ "$RAW_COST" == "null" ] || [ -z "$RAW_COST" ]; then
+            COST=0
+          else
+            COST=$RAW_COST
+          fi
+          echo "DEBUG: Extracted cost is [$COST]"
 
-          if [ -z "$COST" ] || [ "$COST" == "null" ]; then COST=0; fi
-
-          # Fail if cost > $10
-          if (( $(echo "$COST > 10.0" | bc -l) )); then
-            echo "❌ ERROR: Predicted cost of $COST exceeds the $10 budget!"
+          COST_IN_CENTS=$(echo "$COST * 100 / 1" | bc)
+          LIMIT_IN_CENTS=1000
+          if [ "$COST_IN_CENTS" -gt "$LIMIT_IN_CENTS" ]; then
+            echo "❌ ERROR: Predicted cost of \$$COST exceeds the \$10 budget!"
             exit 1
           else
-            echo "✅ Budget check passed."
+            echo "✅ Budget check passed. Cost is \$$COST"
           fi
