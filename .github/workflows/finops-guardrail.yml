@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Infracost
-        uses: infracost/actions/setup@v3 # Using v3 for the setup
+        uses: infracost/actions/setup@v3
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
@@ -24,7 +24,6 @@ jobs:
           infracost breakdown --path terraform/ \
                             --format json \
                             --out-file /tmp/infracost.json
-
 
       - name: Post Infracost Comment
         run: |
@@ -36,20 +35,16 @@ jobs:
 
       - name: Check Budget Limit
         run: |
-          # Get cost, default to 0 if null
+          # Use jq to get the cost, multiply by 100 to compare cents as integers
           RAW_COST=$(jq '.totalMonthlyCost' /tmp/infracost.json | tr -d '"')
-          if [ "$RAW_COST" == "null" ] || [ -z "$RAW_COST" ]; then
-            COST=0
-          else
-            COST=$RAW_COST
-          fi
-          echo "DEBUG: Extracted cost is [$COST]"
-
-          COST_IN_CENTS=$(echo "$COST * 100 / 1" | bc)
-          LIMIT_IN_CENTS=1000
-          if [ "$COST_IN_CENTS" -gt "$LIMIT_IN_CENTS" ]; then
-            echo "❌ ERROR: Predicted cost of \$$COST exceeds the \$10 budget!"
+          if [ "$RAW_COST" == "null" ] || [ -z "$RAW_COST" ]; then COST=0; else COST=$RAW_COST; fi
+          
+          COST_CENTS=$(echo "$COST * 100 / 1" | bc)
+          LIMIT_CENTS=1000 # $10.00
+          
+          if [ "$COST_CENTS" -gt "$LIMIT_CENTS" ]; then
+            echo "❌ ERROR: Predicted cost of $${COST} exceeds the $10 budget!"
             exit 1
           else
-            echo "✅ Budget check passed. Cost is \$$COST"
+            echo "✅ Budget check passed."
           fi

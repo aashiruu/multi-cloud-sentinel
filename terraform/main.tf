@@ -31,11 +31,3 @@ output "aws_account_id" {
   value = data.aws_caller_identity.current.account_id
 }
 
-resource "aws_instance" "expensive_server" {
-  ami           = "ami-0c55b159cbfafe1f0" # Standard Amazon Linux 2
-  instance_type = "m5.4xlarge"           # This costs ~$500/month
-
-  tags = {
-    Name = "BudgetBreaker"
-  }
-}
