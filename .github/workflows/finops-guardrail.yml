@@ -1,0 +1,35 @@
+name: FinOps Guardrail
+
+on: [pull_request]
+
+jobs:
+  infracost:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base
+        uses: actions/checkout@v3
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v2
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost JSON
+        run: |
+          infracost breakdown --path terraform/ \
+                            --format json \
+                            --out-file /tmp/infracost.json
+
+      - name: Post Infracost Comment
+        uses: infracost/actions/comment@v2
+        with:
+          path: /tmp/infracost.json
+          behavior: update
+
+      - name: Check Budget Limit
+        run: |
+          COST=$(jq '.totalMonthlyCost' /tmp/infracost.json | tr -d '"')
+          if (( $(echo "$COST > 10" | bc -l) )); then
+            echo "❌ ERROR: This deployment exceeds the $10 budget limit ($$COST)."
+            exit 1
+          fi
