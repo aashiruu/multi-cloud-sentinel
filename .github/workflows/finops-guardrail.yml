@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Infracost
-        uses: infracost/actions/setup@v2
+        uses: infracost/actions/setup@v3 # Using v3 for the setup
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
@@ -25,11 +25,14 @@ jobs:
                             --format json \
                             --out-file /tmp/infracost.json
 
+
       - name: Post Infracost Comment
-        uses: infracost/actions/comment@v2
-        with:
-          path: /tmp/infracost.json
-          behavior: update
+        run: |
+          infracost comment github --path=/tmp/infracost.json \
+                                   --repo=$GITHUB_REPOSITORY \
+                                   --github-token=${{ github.token }} \
+                                   --pull-request=${{ github.event.pull_request.number }} \
+                                   --behavior=update
 
       - name: Check Budget Limit
         run: |
@@ -38,6 +41,7 @@ jobs:
 
           if [ -z "$COST" ] || [ "$COST" == "null" ]; then COST=0; fi
 
+          # Fail if cost > $10
           if (( $(echo "$COST > 10.0" | bc -l) )); then
             echo "❌ ERROR: Predicted cost of $COST exceeds the $10 budget!"
             exit 1
